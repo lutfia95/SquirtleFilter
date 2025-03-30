@@ -93,7 +93,7 @@ You do not need to install them manually.
 
 ## License
 
-This project is licensed under the Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0). Commercial use is not permitted. See [LICENSE](LICENSE) for details.
+This project is licensed under the GNU Affero General Public License (AGPL). Commercial use must comply with AGPL requirements. See [LICENSE](LICENSE) for details.
 
 ## Project Structure
 
