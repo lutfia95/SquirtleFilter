@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <cmath>
 #include <mutex>
+#include <memory>
 #include <shared_mutex>
 #include <string>
 #include <cstring>
