@@ -1,5 +1,6 @@
 #include "gtest/gtest.h"
 #include "../include/SquirtleFilter.h"
+#include <thread>
 
 TEST(SquirtleFilterTest, BasicInsertContains) {
     BloomFilter bf(100, 0.01, 3);

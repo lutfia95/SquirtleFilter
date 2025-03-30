@@ -11,7 +11,6 @@
 #include <string>
 #include <cstring>
 
-// A highly optimized Bloom Filter implementation supporting dynamic scaling and thread safety.
 class BloomFilter {
 public:
     // Construct a BloomFilter with given expected number of items, target false positive rate, and number of hash functions.
@@ -55,14 +54,14 @@ private:
         std::unique_ptr<std::atomic<uint64_t>[]> bits; // bit array (atomic for thread-safe bit set)
         FilterSegment* prev;        // pointer to previous (older) filter segment in the chain
 
-        FilterSegment(size_t bits, size_t cap, double fpr)
-            : bit_count(bits), capacity(cap), false_positive_rate(fpr),
-              count(0), bits(new std::atomic<uint64_t>[ (bits + 63) / 64 ] ), prev(nullptr)
+        FilterSegment(size_t bitCount, size_t cap, double fpr)
+            : bit_count(bitCount), capacity(cap), false_positive_rate(fpr),
+            count(0), bits(new std::atomic<uint64_t>[(bitCount + 63) / 64]), prev(nullptr)
         {
-            // Initialize bit array to 0
             size_t word_count = (bit_count + 63) / 64;
+            auto* rawBits = bits.get();
             for (size_t i = 0; i < word_count; ++i) {
-                bits[i].store(0, std::memory_order_relaxed);
+                rawBits[i].store(0, std::memory_order_relaxed);
             }
         }
     };
