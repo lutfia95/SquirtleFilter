@@ -1,23 +1,11 @@
 # SquirtleFilter
 
-SquirtleFilter is a blazing-fast, memory-efficient, thread-safe Bloom Filter written in modern C++17. Designed for high-throughput insertions and lookups, with scalable performance and no external dependencies in the core.
-
-Inspired by the mighty Squirtle — small, speedy, and packs a punch!
-
-## Features
-
-- Super fast insert & lookup
-- Configurable hash functions (1 to 5)
-- Dynamically grows to maintain low false-positive rate
-- Thread-safe insertions and lookups using atomics
-- Clean, modular CMake project structure
-- Unit testing with Google Test
-- Benchmarking with Google Benchmark
+SquirtleFilter is a fast, memory-efficient, thread-safe Bloom Filter written in modern C++17.
 
 ## Building the Project
 
 ```bash
-git clone https://github.com/yourusername/SquirtleFilter.git
+git clone https://github.com/lutfia95/SquirtleFilter.git
 cd SquirtleFilter
 mkdir build && cd build
 cmake ..
@@ -63,7 +51,7 @@ Definitely not in set
 ```
 
 ## Example Usage
-
+C++ 
 ```cpp
 #include "SquirtleFilter.h"
 #include <iostream>
@@ -75,11 +63,23 @@ int main() {
     if (bf.contains("squirtle"))
         std::cout << "Possibly in set" << std::endl;
 
-    if (!bf.contains("pikachu"))
+    if (!bf.contains("doml"))
         std::cout << "Definitely not in set" << std::endl;
 
     return 0;
 }
+```
+Python
+```py
+import squirtlefilter
+
+# Initialize Bloom filter
+bf = squirtlefilter.SquirtleFilter(1000000, 0.01, 3)
+bf.insert("squirtle")
+
+# Query
+print(bf.contains("Pikachu"))    # True
+print(bf.contains("doml"))
 ```
 
 ## Dependencies

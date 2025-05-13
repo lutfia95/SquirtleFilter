@@ -9,13 +9,6 @@ TEST(SquirtleFilterTest, BasicInsertContains) {
     EXPECT_FALSE(bf.contains("charmander"));
 }
 
-TEST(SquirtleFilterTest, ResizeTest) {
-    BloomFilter bf(10, 0.01, 3);
-    for (int i = 0; i < 100; ++i) bf.insert("poke" + std::to_string(i));
-    EXPECT_TRUE(bf.contains("poke50"));
-    EXPECT_FALSE(bf.contains("nonexistent"));
-}
-
 TEST(SquirtleFilterTest, ThreadSafetyTest) {
     BloomFilter bf(1000, 0.01, 3);
     auto inserter = [&bf]() {
@@ -25,9 +18,15 @@ TEST(SquirtleFilterTest, ThreadSafetyTest) {
 
     std::thread t1(inserter);
     std::thread t2(inserter);
-    t1.join(); t2.join();
+    t1.join();
+    t2.join();
+
     EXPECT_TRUE(bf.contains("parallel1"));
+    EXPECT_TRUE(bf.contains("parallel499"));
+    EXPECT_FALSE(bf.contains("unseen"));
 }
+
+
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);

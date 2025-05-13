@@ -42,10 +42,11 @@ public:
     }
 
     // Destructor to release allocated memory.
-    ~BloomFilter();
+    //~BloomFilter();
 
 private:
     // Internal structure representing one Bloom filter segment (for scalable Bloom filter).
+    // Warning: this will make the filter dynamic! which will use more memory, skip! make only static! 
     struct FilterSegment {
         size_t bit_count;            // number of bits in this filter
         size_t capacity;            // max number of items this filter was designed for
@@ -65,6 +66,11 @@ private:
             }
         }
     };
+
+    size_t bit_count;
+    std::vector<std::atomic<uint64_t>> bits;
+    size_t capacity;
+    size_t item_count;
 
     // Hash a key to a 128-bit (two 64-bit) result using a high-performance hash (MurmurHash3).
     // We use two 64-bit hashes to generate multiple indices via double hashing.

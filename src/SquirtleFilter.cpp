@@ -1,4 +1,8 @@
 #include "../include/SquirtleFilter.h"
+#include <fstream>
+#include <vector>
+#include <atomic>
+#include <stdexcept>
 #include <cassert>
 #include <cstring>
 
@@ -18,6 +22,7 @@ static inline uint64_t fmix64(uint64_t k) {
 }
 
 // Implementation of 128-bit MurmurHash3 (x64 variant) to produce two 64-bit hash outputs.
+// Check: https://github.com/judwhite/Grassfed.MurmurHash3/blob/master/Grassfed.MurmurHash3/MurmurHash3.cs
 void BloomFilter::hash128(const void* key, size_t len, uint64_t seed, uint64_t& out1, uint64_t& out2) {
     const uint8_t* data = static_cast<const uint8_t*>(key);
     const int nblocks = len / 16;
@@ -96,6 +101,25 @@ void BloomFilter::hash128(const void* key, size_t len, uint64_t seed, uint64_t& 
     out2 = h2;
 }
 
+BloomFilter::BloomFilter(size_t expected_items, double false_positive_rate, uint8_t hash_functions)
+    : k(hash_functions), target_false_positive(false_positive_rate), item_count(0) {
+    
+    if (k < 1) k = 1;
+    if (k > 5) k = 5;
+    if (target_false_positive <= 0.0) target_false_positive = 0.0001;
+    if (target_false_positive >= 1.0) target_false_positive = 0.999;
+
+    // m = - (n * ln(p)) / (ln(2)^2)
+    double m_calc = -(double)expected_items * std::log(target_false_positive) / (std::log(2) * std::log(2));
+    bit_count = static_cast<size_t>(std::ceil(m_calc));
+    size_t num_words = (bit_count + 63) / 64;
+    bits = std::vector<std::atomic<uint64_t>>(num_words);
+    for (auto& word : bits) word.store(0, std::memory_order_relaxed);
+
+    capacity = expected_items;
+}
+
+/* 
 // Constructor: initialize Bloom filter with one filter segment
 BloomFilter::BloomFilter(size_t expected_items, double false_positive_rate, uint8_t hash_functions)
     : k(hash_functions), target_false_positive(false_positive_rate) {
@@ -127,7 +151,7 @@ BloomFilter::BloomFilter(size_t expected_items, double false_positive_rate, uint
     // Create initial filter segment
     current = new FilterSegment(m, cap, initial_fpr);
     current->prev = nullptr;
-}
+}*/
 
 // Move constructor
 BloomFilter::BloomFilter(BloomFilter&& other) noexcept {
@@ -186,9 +210,17 @@ void BloomFilter::addFilterSegment() {
 // Insert an element (thread-safe). Uses double hashing to set k bits.
 void BloomFilter::insert(const void* key, size_t len) {
     // Generate two 64-bit hash values for the key
+
     uint64_t h1, h2;
     hash128(key, len, 0, h1, h2);
-
+    uint64_t base_index = h1 % bit_count;
+    uint64_t hash2_mod = h2 % bit_count;
+    for (uint8_t i = 0; i < k; ++i) {
+        uint64_t index = (base_index + i * hash2_mod) % bit_count;
+        bits[index / 64].fetch_or(1ULL << (index % 64), std::memory_order_relaxed); //  atomicity only, no synchronization with other thread
+    }
+    ++item_count;
+    /*
     while (true) {
         // Acquire shared access to current filter pointer (mutex as shared).
         // Use shared_mutex to allow concurrent contains while inserting.
@@ -238,11 +270,22 @@ void BloomFilter::insert(const void* key, size_t len) {
             seg->bits[wordIndex].fetch_or(bitMask, std::memory_order_relaxed);
         }
         return;
-    }
+    }*/
 }
 
-// Check membership of an element (thread-safe).
+// (thread-safe).
 bool BloomFilter::contains(const void* key, size_t len) const {
+    uint64_t h1, h2;
+    hash128(key, len, 0, h1, h2);
+    uint64_t base_index = h1 % bit_count;
+    uint64_t hash2_mod = h2 % bit_count;
+    for (uint8_t i = 0; i < k; ++i) {
+        uint64_t index = (base_index + i * hash2_mod) % bit_count;
+        if ((bits[index / 64].load(std::memory_order_relaxed) & (1ULL << (index % 64))) == 0)
+            return false;
+    }
+    return true;
+    /*
     // Compute two hash values for double hashing
     uint64_t h1, h2;
     hash128(key, len, 0, h1, h2);
@@ -250,6 +293,7 @@ bool BloomFilter::contains(const void* key, size_t len) const {
     // Traverse through all filter segments (from newest to oldest)
     std::shared_lock<std::shared_mutex> lock(mutex);
     const FilterSegment* seg = current;
+    
     while (seg) {
         bool found = true;
         // Calculate first index and offset for double hashing
@@ -270,15 +314,15 @@ bool BloomFilter::contains(const void* key, size_t len) const {
         }
         seg = seg->prev;
     }
-    return false;
+    return false;*/
 }
 
 // Destructor - free all filter segments
-BloomFilter::~BloomFilter() {
+/*BloomFilter::~BloomFilter() {
     FilterSegment* seg = current;
     while (seg) {
         FilterSegment* prev = seg->prev;
         delete seg;
         seg = prev;
     }
-}
+}*/
