@@ -63,7 +63,7 @@ int main() {
     if (bf.contains("squirtle"))
         std::cout << "Possibly in set" << std::endl;
 
-    if (!bf.contains("doml"))
+    if (!bf.contains("ditto"))
         std::cout << "Definitely not in set" << std::endl;
 
     return 0;
@@ -78,8 +78,8 @@ bf = squirtlefilter.SquirtleFilter(1000000, 0.01, 3)
 bf.insert("squirtle")
 
 # Query
-print(bf.contains("Pikachu"))    # True
-print(bf.contains("doml"))
+print(bf.contains("squirtle"))    # True
+print(bf.contains("ditto"))
 ```
 
 ## Dependencies
