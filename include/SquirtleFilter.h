@@ -33,12 +33,21 @@ public:
         insert(key.data(), key.size());
     }
 
+    // Overload: Insert a double value
+    void insert(double value) {
+        insert(&value, sizeof(double));
+    }
+
     // Check whether an element (by raw data pointer and length) might be in the set.
     bool contains(const void* key, size_t len) const;
 
     // Overload: Check membership of std::string key.
     bool contains(const std::string& key) const {
         return contains(key.data(), key.size());
+    }
+
+    bool contains(double value) const {
+    return contains(&value, sizeof(double));
     }
 
     // Destructor to release allocated memory.
