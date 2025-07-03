@@ -10,6 +10,7 @@
 #include <sys/time.h>
 
 #include "include/SquirtleFilter.h"
+#include "include/SFilters.h"
 
 // Source: https://github.com/JensUweUlrich/ReadBouncer/blob/master/src/main/main.cpp
 double cputime(void)
@@ -339,14 +340,92 @@ void ppmDoubleTest() {
               << (bf.contains(bad_mass) ? "possibly in set" : "not in set") << std::endl;
 }
 
+void printResults(std::vector<int> result){
+    std::cout << "[";
+    for (size_t i = 0; i < result.size(); ++i) {
+        std::cout << result[i];
+        if (i != result.size() - 1) std::cout << ", ";
+    }
+    std::cout << "]\n";
+
+}
+void test(){
+
+    uint64_t numberOfTestingElements {200000000};
+    uint8_t numberOfHashFunctions {5};
+    double falsePositiveRate {0.001};
+
+    BloomFilter bf((numberOfTestingElements), falsePositiveRate, numberOfHashFunctions);
+    bf.insert("GSELLAKFVNILM");
+    bf.printSummary();
+    std::cout << "TP: " << bf.contains("GSELLAKFVNILM") << '\n'; // TP
+    std::cout << "TN: " << bf.contains("GSELLAKFVNLM") << '\n'; // TN
+    auto filter_reference = bf.returnFilterReference();
+    //bf.clear();
+    BloomFilter bf1(numberOfTestingElements, falsePositiveRate, numberOfHashFunctions);
+    bf1.passFilterReference(filter_reference);
+    bf1.writeSQFilter("./filter_dump.sf");
+    bf1.printSummary();
+    std::cout << "Testing reference (TP): " << bf1.contains("GSELLAKFVNILM") << '\n'; 
+    std::cout << "Testing reference (TN): " << bf1.contains("GSELLAKFVNLM") << '\n'; 
+
+    BloomFilter bf2;
+    bf2.loadSQFilter("./filter_dump.sf");
+    bf2.printSummary();
+    std::cout << "Testing write/load (TP): " << bf2.contains("GSELLAKFVNILM") << '\n'; 
+    std::cout << "Testing write/load (TN): " << bf2.contains("GSELLAKFVNLM") << '\n'; 
+    //auto filter_raw = bf.returnFilter();
+    //std::cout << "Testing reference (TP): " << filter_raw.contains("GSELLAKFVNILM") << '\n'; 
+    //std::cout << "Testing reference (TN): " << filter_raw.contains("GSELLAKFVNLM") << '\n'; 
+
+    std::cout << "Testing the creation of set of filters" << '\n';
+    const size_t num_filters = 3;
+    const size_t expected_items = 100;
+    const double fp_rate = 0.01;
+    const uint8_t hash_functions = 3;
+
+    SFilters manager;
+    // (size_t num_filters, size_t expected_items, double false_positive_rate, uint8_t hash_functions)
+    manager.initialize(10000, 1000, 0.01, 4);
+    manager.insert(0, "GSELLAKFVNILM");
+    manager.insert(1, "GSELLAKFVNIL");
+    manager.insert(2, "GSELLAKFVNI");
+    manager.insert(9999, (523154.02204));
+    for (int i = 0; i < 10000; i++){
+        manager.insert(i, (5233354.02204));
+        manager.insert(i, (522254.02234324));
+        manager.insert(i, (52314.01312204));
+    }
+
+    std::cout << "Testing Set of BFs (TP): " << manager.contains("GSELLAKFVNILM") << '\n'; 
+    std::cout << "Testing Set of BFs(TN): " << manager.contains("GSELAKFVNILM") << '\n'; 
+    std::cout << "Testing Set of BFs(TN): " << manager.contains("GSELAKFVNILM") << '\n'; 
+    manager.writeToFile("./filters.sfs");
+
+    SFilters manager2;
+    manager2.loadFromFile("./filters.sfs");
+    std::cout << "Testing Set of BFs (TP): " << manager2.contains("GSELLAKFVNILM") << '\n'; 
+    std::cout << "Testing Set of BFs(TN): " << manager2.contains(523154.02204) << '\n'; 
+
+    auto results_1 = manager2.matchBitVector("GSELLAKFVNILM");
+    auto results_2 = manager2.matchBitVector(523154.02204);
+    std::cout << "Testing Set of BFs (TP): " << '\n';
+    printResults(results_1); 
+    std::cout << "Testing Set of BFs(TN): " << '\n'; 
+    printResults(results_2); 
+    //for (size_t i = 0; i < num_filters; ++i) {
+    //    filters.emplace_back(expected_items, fp_rate, hash_functions);
+    //}
+}
 int main() {
     
     StopClock squirtleFilterUsageCheck;
     squirtleFilterUsageCheck.start();
     //runTest();
-    ppmDoubleTest();
+    //ppmDoubleTest();
     std::cout << "Rounding test!" << std::endl;
-    ppmRoundedTest();
+    //ppmRoundedTest();
+    test();
     squirtleFilterUsageCheck.end();
 
     size_t peakSize = getPeakRSS();

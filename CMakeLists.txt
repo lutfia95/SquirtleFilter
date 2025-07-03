@@ -36,21 +36,31 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(pybind11)
 
 
-add_executable(SquirtleMain main.cpp src/SquirtleFilter.cpp)
-target_link_libraries(SquirtleMain PRIVATE Threads::Threads)
+FetchContent_Declare(
+  cereal
+  GIT_REPOSITORY https://github.com/USCiLab/cereal.git
+  GIT_TAG        master
+)
+FetchContent_MakeAvailable(cereal)
+
+add_library(SquirtleFilter STATIC src/SquirtleFilter.cpp src/SFilters.cpp)
+target_include_directories(SquirtleFilter PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include ${cereal_SOURCE_DIR}/include)
+
+add_executable(SquirtleMain main.cpp src/SquirtleFilter.cpp src/SFilters.cpp)
+target_link_libraries(SquirtleMain PRIVATE SquirtleFilter Threads::Threads)
 
 # === Tests ===
 enable_testing()
-add_executable(SquirtleTests tests/tests.cpp src/SquirtleFilter.cpp)
-target_link_libraries(SquirtleTests gtest gtest_main Threads::Threads)
+add_executable(SquirtleTests tests/tests.cpp src/SquirtleFilter.cpp src/SFilters.cpp)
+target_link_libraries(SquirtleTests PRIVATE SquirtleFilter gtest gtest_main Threads::Threads)
 add_test(NAME SquirtleUnitTests COMMAND SquirtleTests)
 
 # === Benchmark ===
-add_executable(SquirtleBenchmark benchmarks/benchmark.cpp src/SquirtleFilter.cpp)
-target_link_libraries(SquirtleBenchmark benchmark::benchmark Threads::Threads)
+add_executable(SquirtleBenchmark benchmarks/benchmark.cpp src/SquirtleFilter.cpp src/SFilters.cpp)
+target_link_libraries(SquirtleBenchmark PRIVATE SquirtleFilter benchmark::benchmark Threads::Threads)
 
 # === Python Module ===
-add_library(squirtlefilter_module SHARED src/bindings.cpp src/SquirtleFilter.cpp)
-target_link_libraries(squirtlefilter_module PRIVATE pybind11::module)
+add_library(squirtlefilter_module SHARED src/bindings.cpp src/SquirtleFilter.cpp src/SFilters.cpp)
+target_link_libraries(squirtlefilter_module PRIVATE SquirtleFilter pybind11::module)
 target_compile_definitions(squirtlefilter_module PRIVATE -DPYBIND11_EXPORTS)
 set_target_properties(squirtlefilter_module PROPERTIES OUTPUT_NAME "squirtlefilter" PREFIX "")

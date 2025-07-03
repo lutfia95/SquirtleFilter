@@ -10,38 +10,31 @@
 #include <shared_mutex>
 #include <string>
 #include <cstring>
+#include <cereal/types/vector.hpp>
+#include <cereal/archives/binary.hpp>
 
 class BloomFilter {
 public:
-    // Construct a BloomFilter with given expected number of items, target false positive rate, and number of hash functions.
-    // If not sure about expected items, the filter will grow dynamically to maintain the false positive rate.
-    BloomFilter(size_t expected_items = 1000, double false_positive_rate = 0.01, uint8_t hash_functions = 3);
 
-    // Disable copying to avoid accidental expensive operations (could implement if needed)
+    BloomFilter(size_t expected_items = 1000, double false_positive_rate = 0.01, uint8_t hash_functions = 3);
     BloomFilter(const BloomFilter&) = delete;
     BloomFilter& operator=(const BloomFilter&) = delete;
 
-    // Allow moving
     BloomFilter(BloomFilter&& other) noexcept;
     BloomFilter& operator=(BloomFilter&& other) noexcept;
 
-    // Insert an element (by raw data pointer and length) into the Bloom filter.
     void insert(const void* key, size_t len);
 
-    // Overload: Insert a std::string key.
     void insert(const std::string& key) {
         insert(key.data(), key.size());
     }
 
-    // Overload: Insert a double value
     void insert(double value) {
         insert(&value, sizeof(double));
     }
 
-    // Check whether an element (by raw data pointer and length) might be in the set.
     bool contains(const void* key, size_t len) const;
 
-    // Overload: Check membership of std::string key.
     bool contains(const std::string& key) const {
         return contains(key.data(), key.size());
     }
@@ -50,12 +43,43 @@ public:
     return contains(&value, sizeof(double));
     }
 
-    // Destructor to release allocated memory.
-    //~BloomFilter();
+    void clear(); 
+
+    typedef std::vector<std::atomic<uint64_t>> SQFilter;
+    typedef std::vector<uint64_t> SQFilterRAW;
+
+    std::shared_ptr<SQFilter> returnFilterReference() const; 
+
+    SQFilterRAW returnFilter() const;
+
+    void passFilterReference(std::shared_ptr<SQFilter> shared_bits);
+
+    void writeSQFilter(const std::string& output_path) const;
+
+    void loadSQFilter(const std::string& input_path);
+
+    void printSummary() const;
+
+
+    struct BloomFilterData {
+        size_t bit_count;
+        size_t capacity;
+        size_t item_count;
+        uint8_t hash_functions;
+        double false_positive_rate;
+        std::vector<uint64_t> bits;
+
+        template <class Archive>
+        void serialize(Archive& ar) {
+            ar(bit_count, capacity, item_count, hash_functions, false_positive_rate, bits);
+        }
+    };
+
+    BloomFilterData exportData() const;
+    
+    void importData(const BloomFilterData& data);
 
 private:
-    // Internal structure representing one Bloom filter segment (for scalable Bloom filter).
-    // Warning: this will make the filter dynamic! which will use more memory, skip! make only static! 
     struct FilterSegment {
         size_t bit_count;            // number of bits in this filter
         size_t capacity;            // max number of items this filter was designed for
@@ -75,9 +99,9 @@ private:
             }
         }
     };
-
     size_t bit_count;
-    std::vector<std::atomic<uint64_t>> bits;
+    //std::vector<std::atomic<uint64_t>> bits;
+    std::shared_ptr<std::vector<std::atomic<uint64_t>>> bits;
     size_t capacity;
     size_t item_count;
 
@@ -85,16 +109,12 @@ private:
     // We use two 64-bit hashes to generate multiple indices via double hashing.
     static void hash128(const void* key, size_t len, uint64_t seed, uint64_t& out1, uint64_t& out2);
 
-    // Add a new filter segment when the current one is at capacity.
-    void addFilterSegment();
-
     uint8_t k;                     // number of hash functions
     double target_false_positive;  // desired maximum false positive rate for the Bloom filter
     const double growth_factor = 2.0;      // factor to grow the filter size (capacity) when expanding
     const double error_decay = 0.5;        // factor to decrease false positive rate in each new filter
-
-    FilterSegment* current;        // pointer to the current (latest) filter segment
     mutable std::shared_mutex mutex; // mutex for thread-safe access (read for contains, write for resizing)
+    FilterSegment* current; 
 };
 
 #endif
