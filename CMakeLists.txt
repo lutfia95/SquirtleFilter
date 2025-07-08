@@ -63,4 +63,4 @@ target_link_libraries(SquirtleBenchmark PRIVATE SquirtleFilter benchmark::benchm
 add_library(squirtlefilter_module SHARED src/bindings.cpp src/SquirtleFilter.cpp src/SFilters.cpp)
 target_link_libraries(squirtlefilter_module PRIVATE SquirtleFilter pybind11::module)
 target_compile_definitions(squirtlefilter_module PRIVATE -DPYBIND11_EXPORTS)
-set_target_properties(squirtlefilter_module PROPERTIES OUTPUT_NAME "squirtlefilter" PREFIX "")
+set_target_properties(squirtlefilter_module PROPERTIES OUTPUT_NAME "sfcollection" PREFIX "")

@@ -39,7 +39,7 @@ uint64_t computeSingleBFSize(uint64_t numberOfElements, double falsePositiveRate
 }
 
 
-void runTest(){
+void runTestSingle(){
 
     StopClock squirtleFilterInsetionCheck;
     squirtleFilterInsetionCheck.start();
@@ -86,7 +86,7 @@ void runTest(){
     std::cout << "\"RQTGRPHGFLRKFGLL100\" -> " << (bf.contains("RQTGRPHGFLRKFGLL100") ? "possibly in set" : "not in set") << std::endl;
     std::cout << "\"RQTGRPHGFLRKFGL100\" -> " << (bf.contains("RQTGRPHGFLRKFGL100") ? "possibly in set" : "not in set") << std::endl;
     std::cout << "\"nonexistent\" -> " << (bf.contains("nonexistent") ? "possibly in set" : "not in set") << std::endl;
-    squirtleFilterInsetionCheck.end();
+    squirtleFilterInsetionCheck.stop();
 
     size_t peakSize = getPeakRSS();
 	int peakSizeMByte = (int)(peakSize / (1024 * 1024));
@@ -132,7 +132,7 @@ void runTest(){
               << std::endl;
 
     
-    squirtleFilterLookupCheck.end();
+    squirtleFilterLookupCheck.stop();
     size_t peakSizeLookup = getPeakRSS();
 	int peakSizeMByteLookup = (int)(peakSizeLookup / (1024 * 1024));
     std::cout << '\n';
@@ -190,7 +190,7 @@ void runTestHash(){
     std::cout << "\"RQTGRPHGFLRKFGLL100\" -> " << (bf.contains("RQTGRPHGFLRKFGLL100") ? "possibly in set" : "not in set") << std::endl;
     std::cout << "\"RQTGRPHGFLRKFGL100\" -> " << (bf.contains("RQTGRPHGFLRKFGL100") ? "possibly in set" : "not in set") << std::endl;
     std::cout << "\"nonexistent\" -> " << (bf.contains("nonexistent") ? "possibly in set" : "not in set") << std::endl;
-    squirtleFilterInsetionCheck.end();
+    squirtleFilterInsetionCheck.stop();
 
     size_t peakSize = getPeakRSS();
 	int peakSizeMByte = (int)(peakSize / (1024 * 1024));
@@ -236,7 +236,7 @@ void runTestHash(){
               << std::endl;
 
     
-    squirtleFilterLookupCheck.end();
+    squirtleFilterLookupCheck.stop();
     size_t peakSizeLookup = getPeakRSS();
 	int peakSizeMByteLookup = (int)(peakSizeLookup / (1024 * 1024));
     std::cout << '\n';
@@ -417,16 +417,508 @@ void test(){
     //    filters.emplace_back(expected_items, fp_rate, hash_functions);
     //}
 }
+
+void singleSQStringInsertion(){
+
+    StopClock squirtleFilterInsetionCheck;
+    squirtleFilterInsetionCheck.start();
+
+    std::cout << "[INFO] Running insertion test of one single SBF..." << '\n';
+    std::cerr << "[INFO-DEV] C++ version: " << __cplusplus << std::endl;
+    uint64_t numberOfTestingElements {200000000};
+    uint8_t numberOfHashFunctions {5};
+    double falsePositiveRate {0.001};
+    auto BFMB = (double)(computeSingleBFSize(numberOfHashFunctions, falsePositiveRate, numberOfHashFunctions) * 1)/ static_cast< double >( 8388608u );
+    auto BFGB = BFMB / 1024.0;
+
+    BloomFilter bf((numberOfTestingElements), falsePositiveRate, numberOfHashFunctions);
+
+    for (int i = 0; i < numberOfTestingElements; ++i) {
+        std::string key = "RQTGRPHGFLRKFGL" + std::to_string(i);
+        bf.insert(key);
+    }
+    bf.printSummary();
+    bf.writeSQFilter("./singleSFStringsInsertion.sf");
+    squirtleFilterInsetionCheck.stop();
+
+    size_t peakSize = getPeakRSS();
+	int peakSizeMByte = (int)(peakSize / (1024 * 1024));
+    std::cout << '\n';
+	std::cout << "*********************** SquirtleFilter Insetion Usage Report (Strings) ******" << std::endl;
+	std::cout << "* Real time : " << squirtleFilterInsetionCheck.elapsed() << " sec         " << std::endl;
+	std::cout << "* CPU time  : " << cputime() << " sec                    " << std::endl;
+	std::cout << "* Peak RSS  : " << peakSizeMByte << " MByte              " << std::endl;
+	std::cout << "**********************************************************" << std::endl;
+
+}
+
+void singleSQStringLookup(){
+
+    uint64_t numberOfTestingElements {200000000};
+    std::cout << "[INFO] Running lookup tests..." << '\n';
+    StopClock squirtleFilterLookupCheck;
+    squirtleFilterLookupCheck.start();
+
+    BloomFilter bf2;
+    bf2.loadSQFilter("./singleSFStringsInsertion.sf");
+    bf2.printSummary();
+    uint64_t TP = 0;
+    uint64_t TN = 0;
+    uint64_t FP = 0;
+    uint64_t FN = 0;
+
+    // correct positive
+    for (uint64_t i = 0; i < numberOfTestingElements; ++i) {
+        std::string key = "RQTGRPHGFLRKFGL" + std::to_string(i);
+        if (bf2.contains(key)) {
+            ++TP;
+        } else {
+            ++FN;
+        }
+    }
+
+    // wrong positive
+    for (uint64_t i = 0; i < numberOfTestingElements; ++i) {
+        std::string key = "RQTGRPHFLRKFGL" + std::to_string(i); // one aa missed #RQTSGRPHFLRKFGL
+        if (bf2.contains(key)) {
+            ++FP;
+        } else {
+            ++TN;
+        }
+    }
+
+
+    const uint64_t totalLookups = TP + FN + FP + TN;
+    const uint64_t positives = TP + FP;
+    const uint64_t negatives = TN + FN;
+
+    std::cout << "[LOOKUP TEST] Total: " << totalLookups
+              << ", TP: " << TP
+              << ", FP: " << FP
+              << ", TN: " << TN
+              << ", FN: " << FN << '\n';
+
+    std::cout << "* False Positive Rate: " << static_cast<double>(FP) / (FP + TN) << '\n';
+    std::cout << "* False Negative Rate: " << static_cast<double>(FN) / (TP + FN) << '\n';
+
+    
+    squirtleFilterLookupCheck.stop();
+    size_t peakSizeLookup = getPeakRSS();
+	int peakSizeMByteLookup = (int)(peakSizeLookup / (1024 * 1024));
+    std::cout << '\n';
+	std::cout << "*********************** SquirtleFilter Lookup Usage Report (String) ******" << std::endl;
+	std::cout << "* Real time : " << squirtleFilterLookupCheck.elapsed() << " sec         " << std::endl;
+	std::cout << "* CPU time  : " << cputime() << " sec                    " << std::endl;
+	std::cout << "* Peak RSS  : " << peakSizeMByteLookup << " MByte              " << std::endl;
+	std::cout << "**********************************************************" << std::endl;
+}
+
+void singleSQDoubleInsertion(){
+
+    StopClock squirtleFilterInsetionCheck;
+    squirtleFilterInsetionCheck.start();
+
+    std::cout << "[INFO] Running insertion test of one single SBF..." << '\n';
+    std::cerr << "[INFO-DEV] C++ version: " << __cplusplus << std::endl;
+    uint64_t numberOfTestingElements {200000000};
+    uint8_t numberOfHashFunctions {5};
+    double falsePositiveRate {0.001};
+    auto BFMB = (double)(computeSingleBFSize(numberOfHashFunctions, falsePositiveRate, numberOfHashFunctions) * 1)/ static_cast< double >( 8388608u );
+    auto BFGB = BFMB / 1024.0;
+
+    BloomFilter bf((numberOfTestingElements), falsePositiveRate, numberOfHashFunctions);
+    bf.printSummary();
+
+    for (int i = 0; i < numberOfTestingElements; ++i) {
+        double key = 8565948.2514 + i * 0.253458;
+        bf.insert(key);
+    }
+    bf.writeSQFilter("./singleSFDoubleInsertion.sf");
+    squirtleFilterInsetionCheck.stop();
+
+    size_t peakSize = getPeakRSS();
+	int peakSizeMByte = (int)(peakSize / (1024 * 1024));
+    std::cout << '\n';
+	std::cout << "*********************** SquirtleFilter Insetion Usage Report (Double) ******" << std::endl;
+	std::cout << "* Real time : " << squirtleFilterInsetionCheck.elapsed() << " sec         " << std::endl;
+	std::cout << "* CPU time  : " << cputime() << " sec                    " << std::endl;
+	std::cout << "* Peak RSS  : " << peakSizeMByte << " MByte              " << std::endl;
+	std::cout << "**********************************************************" << std::endl;
+
+}
+
+void singleSQDoubleLookup(){
+
+    uint64_t numberOfTestingElements {200000000};
+    std::cout << "[INFO] Running lookup tests..." << '\n';
+    StopClock squirtleFilterLookupCheck;
+    squirtleFilterLookupCheck.start();
+
+    BloomFilter bf2;
+    bf2.loadSQFilter("./singleSFDoubleInsertion.sf");
+    bf2.printSummary();
+
+    uint64_t TP = 0;
+    uint64_t TN = 0;
+    uint64_t FP = 0;
+    uint64_t FN = 0;
+
+    for (uint64_t i = 0; i < numberOfTestingElements; ++i) {
+        double key = 8565948.2514 + i * 0.253458;
+        if (bf2.contains(key)) {
+            ++TP;
+        } else {
+            ++FN;
+        }
+    }
+
+    for (uint64_t i = 0; i < numberOfTestingElements; ++i) {
+        double key = 8565948.2514 + i * 0.353458;// + 0.1 
+        if (bf2.contains(key)) {
+            ++FP;
+        } else {
+            ++TN;
+        }
+    }
+
+
+    const uint64_t totalLookups = TP + FN + FP + TN;
+    const uint64_t positives = TP + FP;
+    const uint64_t negatives = TN + FN;
+
+    std::cout << "[LOOKUP TEST] Total: " << totalLookups
+              << ", TP: " << TP
+              << ", FP: " << FP
+              << ", TN: " << TN
+              << ", FN: " << FN << '\n';
+
+    std::cout << "* False Positive Rate: " << static_cast<double>(FP) / (FP + TN) << '\n';
+    std::cout << "* False Negative Rate: " << static_cast<double>(FN) / (TP + FN) << '\n';
+    
+    squirtleFilterLookupCheck.stop();
+    size_t peakSizeLookup = getPeakRSS();
+	int peakSizeMByteLookup = (int)(peakSizeLookup / (1024 * 1024));
+    std::cout << '\n';
+	std::cout << "*********************** SquirtleFilter Lookup Usage Report (Double) ******" << std::endl;
+	std::cout << "* Real time : " << squirtleFilterLookupCheck.elapsed() << " sec         " << std::endl;
+	std::cout << "* CPU time  : " << cputime() << " sec                    " << std::endl;
+	std::cout << "* Peak RSS  : " << peakSizeMByteLookup << " MByte              " << std::endl;
+	std::cout << "**********************************************************" << std::endl;
+}
+
+void multiSQStringInsertion(){
+
+    StopClock squirtleFilterInsetionCheck;
+    squirtleFilterInsetionCheck.start();
+
+    std::cout << "[INFO] Running insertion test of multiple SquirtleFilters (SFilters)..." << '\n';
+
+    std::cerr << "[INFO-DEV] C++ version: " << __cplusplus << std::endl;
+    uint64_t numberOfTestingElements {200000000};
+    uint64_t numberOfFilters {1000};
+    uint8_t numberOfHashFunctions {5};
+    double falsePositiveRate {0.001};
+    auto BFMB = (double)(computeSingleBFSize(numberOfHashFunctions, falsePositiveRate, numberOfHashFunctions) * 1)/ static_cast< double >( 8388608u );
+    auto BFGB = BFMB / 1024.0;
+
+    std::cout << "Number of Filters: " << numberOfFilters << " | each with: " << double(numberOfTestingElements/numberOfFilters) << " elements" << '\n';
+    // (size_t num_filters, size_t expected_items, double false_positive_rate, uint8_t hash_functions)
+    SFilters bf;
+    bf.initialize(numberOfFilters, (numberOfTestingElements/numberOfFilters), falsePositiveRate, numberOfHashFunctions);
+
+    for (uint64_t j = 0; j < numberOfFilters; j++) {
+        for (uint64_t i = 0; i < (numberOfTestingElements / numberOfFilters); ++i) {
+            std::string key = "RQTGRPHGFLRKFGL" + std::to_string(i);
+            bf.insert(j, key);
+        }
+    }
+
+    
+    bf.writeToFile("./singleSFStringsInsertion.sfs");
+    squirtleFilterInsetionCheck.stop();
+
+    size_t peakSize = getPeakRSS();
+	int peakSizeMByte = (int)(peakSize / (1024 * 1024));
+    std::cout << '\n';
+	std::cout << "*********************** SquirtleFilterS Insetion Usage Report (Strings) ******" << std::endl;
+	std::cout << "* Real time : " << squirtleFilterInsetionCheck.elapsed() << " sec         " << std::endl;
+	std::cout << "* CPU time  : " << cputime() << " sec                    " << std::endl;
+	std::cout << "* Peak RSS  : " << peakSizeMByte << " MByte              " << std::endl;
+	std::cout << "**********************************************************" << std::endl;
+
+}
+
+void multiSQStringLookup(){
+
+    uint64_t numberOfTestingElements {200000000};
+    uint64_t numberOfFilters {1000};
+    std::cout << "[INFO] Running lookup tests..." << '\n';
+    StopClock squirtleFilterLookupCheck;
+    squirtleFilterLookupCheck.start();
+
+    SFilters bf2;
+    bf2.loadFromFile("./singleSFStringsInsertion.sfs");
+    uint64_t TP = 0;
+    uint64_t TN = 0;
+    uint64_t FP = 0;
+    uint64_t FN = 0;
+
+    // correct positive
+    for (uint64_t i = 0; i < numberOfTestingElements/numberOfFilters; ++i) {
+        std::string key = "RQTGRPHGFLRKFGL" + std::to_string(i);
+        auto result = bf2.matchBitVector(key);
+        bool matched = std::any_of(result.begin(), result.end(), [](int b) { return b == 1; });
+        if (matched) ++TP;
+        else ++FN;
+    }
+
+    // wrong positive
+    for (uint64_t i = 0; i < numberOfTestingElements/numberOfFilters; ++i) {
+        std::string key = "RQTGRPHFLRKFGL" + std::to_string(i); // altered key
+        auto result = bf2.matchBitVector(key);
+        bool matched = std::any_of(result.begin(), result.end(), [](int b) { return b == 1; });
+        if (matched) ++FP;
+        else ++TN;
+    }
+
+
+    const uint64_t totalLookups = TP + FN + FP + TN;
+    const uint64_t positives = TP + FP;
+    const uint64_t negatives = TN + FN;
+
+    std::cout << "[LOOKUP TEST] Total: " << totalLookups
+              << ", TP: " << TP
+              << ", FP: " << FP
+              << ", TN: " << TN
+              << ", FN: " << FN << '\n';
+
+    std::cout << "* False Positive Rate: " << static_cast<double>(FP) / (FP + TN) << '\n';
+    std::cout << "* False Negative Rate: " << static_cast<double>(FN) / (TP + FN) << '\n';
+
+    
+    squirtleFilterLookupCheck.stop();
+    size_t peakSizeLookup = getPeakRSS();
+	int peakSizeMByteLookup = (int)(peakSizeLookup / (1024 * 1024));
+    std::cout << '\n';
+	std::cout << "*********************** SquirtleFilterS Lookup Usage Report (String) ******" << std::endl;
+	std::cout << "* Real time : " << squirtleFilterLookupCheck.elapsed() << " sec         " << std::endl;
+	std::cout << "* CPU time  : " << cputime() << " sec                    " << std::endl;
+	std::cout << "* Peak RSS  : " << peakSizeMByteLookup << " MByte              " << std::endl;
+	std::cout << "**********************************************************" << std::endl;
+}
+
+void multiSQDoubleInsertion() {
+    StopClock squirtleFilterInsetionCheck;
+    squirtleFilterInsetionCheck.start();
+
+    std::cout << "[INFO] Running insertion test of multiple SquirtleFilters (SFilters) for double keys..." << '\n';
+    std::cerr << "[INFO-DEV] C++ version: " << __cplusplus << std::endl;
+
+    uint64_t numberOfTestingElements {200000000};
+    uint64_t numberOfFilters {1000};
+    uint8_t numberOfHashFunctions {5};
+    double falsePositiveRate {0.001};
+
+    std::cout << "Number of Filters: " << numberOfFilters
+              << " | each with: " << double(numberOfTestingElements / numberOfFilters)
+              << " elements" << '\n';
+
+    SFilters bf;
+    bf.initialize(numberOfFilters, (numberOfTestingElements / numberOfFilters), falsePositiveRate, numberOfHashFunctions);
+
+    for (uint64_t j = 0; j < numberOfFilters; ++j) {
+        for (uint64_t i = 0; i < (numberOfTestingElements / numberOfFilters); ++i) {
+            double key = 8565948.2514 + i * 0.253458;
+            bf.insert(j, key);
+        }
+    }
+
+    bf.writeToFile("./multiSFDoubleInsertion.sfs");
+    squirtleFilterInsetionCheck.stop();
+
+    size_t peakSize = getPeakRSS();
+    int peakSizeMByte = static_cast<int>(peakSize / (1024 * 1024));
+    std::cout << '\n';
+    std::cout << "*********************** SquirtleFilterS Insertion Usage Report (Double) ******" << std::endl;
+    std::cout << "* Real time : " << squirtleFilterInsetionCheck.elapsed() << " sec         " << std::endl;
+    std::cout << "* CPU time  : " << cputime() << " sec                    " << std::endl;
+    std::cout << "* Peak RSS  : " << peakSizeMByte << " MByte              " << std::endl;
+    std::cout << "**********************************************************" << std::endl;
+}
+
+void multiSQDoubleLookup() {
+    uint64_t numberOfTestingElements {200000000};
+    uint64_t numberOfFilters {1000};
+
+    std::cout << "[INFO] Running lookup tests for multi-filter SFilters (double keys)..." << '\n';
+
+    StopClock squirtleFilterLookupCheck;
+    squirtleFilterLookupCheck.start();
+
+    SFilters bf2;
+    bf2.loadFromFile("./multiSFDoubleInsertion.sfs");
+
+    uint64_t TP = 0;
+    uint64_t TN = 0;
+    uint64_t FP = 0;
+    uint64_t FN = 0;
+
+    // correct positives
+    for (uint64_t i = 0; i < numberOfTestingElements / numberOfFilters; ++i) {
+        double key = 8565948.2514 + i * 0.253458;
+        auto result = bf2.matchBitVector(key);
+        bool matched = std::any_of(result.begin(), result.end(), [](int b) { return b == 1; });
+        if (matched) ++TP;
+        else ++FN;
+    }
+
+    // wrong positives
+    for (uint64_t i = 0; i < numberOfTestingElements / numberOfFilters; ++i) {
+        double key = 8565948.2514 + i * 0.353458;  // altered shift
+        auto result = bf2.matchBitVector(key);
+        bool matched = std::any_of(result.begin(), result.end(), [](int b) { return b == 1; });
+        if (matched) ++FP;
+        else ++TN;
+    }
+
+    const uint64_t totalLookups = TP + FN + FP + TN;
+
+    std::cout << "[LOOKUP TEST] Total: " << totalLookups
+              << ", TP: " << TP
+              << ", FP: " << FP
+              << ", TN: " << TN
+              << ", FN: " << FN << '\n';
+
+    std::cout << "* False Positive Rate: " << static_cast<double>(FP) / (FP + TN) << '\n';
+    std::cout << "* False Negative Rate: " << static_cast<double>(FN) / (TP + FN) << '\n';
+
+    squirtleFilterLookupCheck.stop();
+
+    size_t peakSizeLookup = getPeakRSS();
+    int peakSizeMByteLookup = static_cast<int>(peakSizeLookup / (1024 * 1024));
+
+    std::cout << '\n';
+    std::cout << "*********************** SquirtleFilterS Lookup Usage Report (Double) ******" << std::endl;
+    std::cout << "* Real time : " << squirtleFilterLookupCheck.elapsed() << " sec         " << std::endl;
+    std::cout << "* CPU time  : " << cputime() << " sec                    " << std::endl;
+    std::cout << "* Peak RSS  : " << peakSizeMByteLookup << " MByte              " << std::endl;
+    std::cout << "**********************************************************" << std::endl;
+}
+
+void multiSQDoubleInsertionHumanProteins() {
+    StopClock squirtleFilterInsetionCheck;
+    squirtleFilterInsetionCheck.start();
+
+    std::cout << "[INFO] Running insertion test of multiple SquirtleFilters (SFilters) for double keys..." << '\n';
+    std::cerr << "[INFO-DEV] C++ version: " << __cplusplus << std::endl;
+
+    uint64_t numberOfTestingElements {150};
+    uint64_t numberOfFilters {2000000};
+    uint8_t numberOfHashFunctions {5};
+    double falsePositiveRate {0.001};
+
+    std::cout << "Number of Filters: " << numberOfFilters
+              << " | each with: " << double(numberOfTestingElements)
+              << " elements" << '\n';
+
+    SFilters bf;
+    bf.initialize(numberOfFilters, (numberOfTestingElements), falsePositiveRate, numberOfHashFunctions);
+
+    for (uint64_t j = 0; j < numberOfFilters; ++j) {
+        for (uint64_t i = 0; i < (numberOfTestingElements); ++i) {
+            double key = 8565948.2514 + i * 0.253458;
+            bf.insert(j, key);
+        }
+    }
+
+    bf.writeToFile("./multiSFDoubleInsertionHumanProteins.sfs");
+    squirtleFilterInsetionCheck.stop();
+
+    size_t peakSize = getPeakRSS();
+    int peakSizeMByte = static_cast<int>(peakSize / (1024 * 1024));
+    std::cout << '\n';
+    std::cout << "*********************** SquirtleFilterS Insertion Usage Report (Double) ******" << std::endl;
+    std::cout << "* Real time : " << squirtleFilterInsetionCheck.elapsed() << " sec         " << std::endl;
+    std::cout << "* CPU time  : " << cputime() << " sec                    " << std::endl;
+    std::cout << "* Peak RSS  : " << peakSizeMByte << " MByte              " << std::endl;
+    std::cout << "**********************************************************" << std::endl;
+}
+
+void multiSQDoubleLookupHumanProteins() {
+    uint64_t numberOfTestingElements {150};
+    uint64_t numberOfFilters {2000000};
+
+    std::cout << "[INFO] Running lookup tests for multi-filter SFilters (double keys)..." << '\n';
+
+    StopClock squirtleFilterLookupCheck;
+    squirtleFilterLookupCheck.start();
+
+    SFilters bf2;
+    bf2.loadFromFile("./multiSFDoubleInsertionHumanProteins.sfs");
+
+    uint64_t TP = 0;
+    uint64_t TN = 0;
+    uint64_t FP = 0;
+    uint64_t FN = 0;
+
+    // correct positives
+    for (uint64_t i = 0; i < numberOfTestingElements; ++i) {
+        double key = 8565948.2514 + i * 0.253458;
+        auto result = bf2.matchBitVector(key);
+        bool matched = std::any_of(result.begin(), result.end(), [](int b) { return b == 1; });
+        if (matched) ++TP;
+        else ++FN;
+    }
+
+    // wrong positives
+    for (uint64_t i = 0; i < numberOfTestingElements; ++i) {
+        double key = 8565948.2514 + i * 0.353458;  // altered shift
+        auto result = bf2.matchBitVector(key);
+        bool matched = std::any_of(result.begin(), result.end(), [](int b) { return b == 1; });
+        if (matched) ++FP;
+        else ++TN;
+    }
+
+    const uint64_t totalLookups = TP + FN + FP + TN;
+
+    std::cout << "[LOOKUP TEST] Total: " << totalLookups
+              << ", TP: " << TP
+              << ", FP: " << FP
+              << ", TN: " << TN
+              << ", FN: " << FN << '\n';
+
+    std::cout << "* False Positive Rate: " << static_cast<double>(FP) / (FP + TN) << '\n';
+    std::cout << "* False Negative Rate: " << static_cast<double>(FN) / (TP + FN) << '\n';
+
+    squirtleFilterLookupCheck.stop();
+
+    size_t peakSizeLookup = getPeakRSS();
+    int peakSizeMByteLookup = static_cast<int>(peakSizeLookup / (1024 * 1024));
+
+    std::cout << '\n';
+    std::cout << "*********************** SquirtleFilterS Lookup Usage Report (Double) ******" << std::endl;
+    std::cout << "* Real time : " << squirtleFilterLookupCheck.elapsed() << " sec         " << std::endl;
+    std::cout << "* CPU time  : " << cputime() << " sec                    " << std::endl;
+    std::cout << "* Peak RSS  : " << peakSizeMByteLookup << " MByte              " << std::endl;
+    std::cout << "**********************************************************" << std::endl;
+}
+
 int main() {
     
     StopClock squirtleFilterUsageCheck;
     squirtleFilterUsageCheck.start();
-    //runTest();
-    //ppmDoubleTest();
-    std::cout << "Rounding test!" << std::endl;
-    //ppmRoundedTest();
-    test();
-    squirtleFilterUsageCheck.end();
+    //singleSQStringInsertion();
+    //singleSQStringLookup();
+    //singleSQDoubleInsertion();
+    //singleSQDoubleLookup();
+    //multiSQStringInsertion();
+    //multiSQStringLookup();
+    //multiSQDoubleInsertion();
+    //multiSQDoubleLookup();
+    multiSQDoubleInsertionHumanProteins();
+    multiSQDoubleInsertionHumanProteins();
+
+    squirtleFilterUsageCheck.stop();
 
     size_t peakSize = getPeakRSS();
 	int peakSizeMByte = (int)(peakSize / (1024 * 1024));

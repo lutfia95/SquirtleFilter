@@ -1,69 +1,150 @@
 import sys
 import resource
-sys.path.append("./build")
-import squirtlefilter
+import gc
+sys.path.append("./build/")
+import sfcollection
+print(dir(sfcollection.SquirtleFilter))
 import time
 import psutil
 import os
 
-def get_memory_mb():
-    process = psutil.Process(os.getpid())
-    return process.memory_info().rss / (1024 * 1024)
 
-def run_test():
-    numberOfTestingElements = 200_000_000
-    numberOfHashFunctions = 5
-    falsePositiveRate = 0.001
+def get_peak_rss_mb():
+    return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024  # in MB
 
-    print("[INFO] Running insertion test...")
-    print(f"[INFO] Python Bloom Filter Stat:")
-    print(f"Max Elements size: {numberOfTestingElements}")
-    print(f"Number of hash functions: {numberOfHashFunctions}")
-    print(f"False positive rate: {falsePositiveRate}")
 
-    bf = squirtlefilter.SquirtleFilter(numberOfTestingElements, falsePositiveRate, numberOfHashFunctions)
-
-    #start_mem = get_memory_mb()
-    start_mem = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    start_time = time.time()
-
-    bf.insert("MAKQSMKAREVKRVALADKYFAKRAELKAIISDVNASDEDRWNAVLKLQTLPRDSSPSRQRNRCRQTGRPHGFLRKFGLSRIKV")
-    bf.insert("KAIISDVNASDEDRWNAVLKLQTLPRDSSPSRQRNRCRQT")
-    bf.insert("RQTGRPHGFLRKFGLS")
-    bf.insert("FVNILM[UNIMOD:35]VDG")
-    bf.insert("FVNILMMXMVDG")
-    bf.insert("GSELLAKFVNILMMXMVDGKKSTAESIVYSALETLAQRSGKS")
-
-    for i in range(numberOfTestingElements):
-        bf.insert(f"RQTGRPHGFLRKFGL{i}")
-
+def print_stats(label, start_time, tp, fp, tn, fn):
     end_time = time.time()
-    #end_mem = get_memory_mb()
-    end_mem = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    print(f"[INFO] Insertion Done. Time: {end_time - start_time:.2f}s, Peak RSS (approx): {end_mem - start_mem:.2f} MB")
+    real_time = end_time - start_time
+    peak_rss = get_peak_rss_mb()
 
-    print("[INFO] Running lookup test...")
-    start_time = time.time()
-    positives = 0
-    negatives = 0
-    start_mem = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    for i in range(numberOfTestingElements):
-        if bf.contains(f"RQTGRPHGFLRKFGL{i}"):
-            positives += 1
-        else:
-            negatives += 1
+    total = tp + fp + tn + fn
+    fpr = fp / (fp + tn) if (fp + tn) else 0.0
+    fnr = fn / (tp + fn) if (tp + fn) else 0.0
 
-    for i in range(numberOfTestingElements // 2):
-        if bf.contains(f"RQTGRPHFLRKFGL{i}"):
-            positives += 1
-        else:
-            negatives += 1
+    print(f"\n************** {label} **************")
+    print(f"Total: {total}, TP: {tp}, FP: {fp}, TN: {tn}, FN: {fn}")
+    print(f"False Positive Rate: {fpr:.6f}")
+    print(f"False Negative Rate: {fnr:.6f}")
+    print(f"Real Time: {real_time:.2f} sec")
+    print(f"Peak RSS: {peak_rss:.2f} MB")
+    print("**************************************\n")
 
-    end_time = time.time()
-    end_mem = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    print(f"[LOOKUP TEST] Total: {positives + negatives}, Positives: {positives}, Negatives: {negatives}")
-    print(f"[INFO] Lookup Done. Time: {end_time - start_time:.2f}s, Peak RSS (approx): {end_mem - start_mem:.2f} MB")
+
+def single_string_test():
+    print("[TEST] Single SquirtleFilter (String)")
+    n = 200000000
+    f = sfcollection.SquirtleFilter(n, 0.001, 5)
+    for i in range(n):
+        f.insert(f"RQTGRPHGFLRKFGL{i}")
+    f.write("singleSFStringsInsertionPY.sf")
+
+    f2 = sfcollection.SquirtleFilter(100, 0.001, 5)
+    f2.print_summary()
+    f2.load("singleSFStringsInsertionPY.sf")
+    f2.print_summary()
+
+    start = time.time()
+    TP = sum(f2.contains(f"RQTGRPHGFLRKFGL{i}") for i in range(n))
+    FN = n - TP
+    FP = sum(f2.contains(f"RQTGRPHFLRKFGL{i}") for i in range(n))
+    TN = n - FP
+    print_stats("Single String Lookup", start, TP, FP, TN, FN)
+
+
+def single_double_test():
+    print("[TEST] Single SquirtleFilter (Double)")
+    n = 200000000
+    f = sfcollection.SquirtleFilter(n, 0.001, 5)
+    for i in range(n):
+        f.insert_double(8565948.2514 + i * 0.253458)
+    f.write("singleSFDoubleInsertionPY.sf")
+
+    f2 = sfcollection.SquirtleFilter(200000000, 0.001, 5)
+    f2.load("singleSFDoubleInsertionPY.sf")
+
+    start = time.time()
+    TP = sum(f2.contains_double(8565948.2514 + i * 0.253458) for i in range(n))
+    FN = n - TP
+    FP = sum(f2.contains_double(8565948.2514 + i * 0.353458) for i in range(n))
+    TN = n - FP
+    print_stats("Single Double Lookup", start, TP, FP, TN, FN)
+
+
+def multi_string_test():
+    print("[TEST] Multi SFilters (String)")
+    n = 200000000
+    filters = 10
+    per_filter = n // filters
+    f = sfcollection.SFilters()
+    f.initialize(filters, per_filter, 0.001, 5)
+
+    for j in range(filters):
+        for i in range(per_filter):
+            f.insert_string(j, f"RQTGRPHGFLRKFGL{i}")
+    f.write_to_file("singleSFStringsInsertionPY.sfs")
+
+    f2 = sfcollection.SFilters()
+    f2.load_from_file("singleSFStringsInsertionPY.sfs")
+
+    start = time.time()
+    TP = sum(any(f2.match_bit_vector_string(f"RQTGRPHGFLRKFGL{i}")) for i in range(per_filter))
+    FN = per_filter - TP
+    FP = sum(any(f2.match_bit_vector_string(f"RQTGRPHFLRKFGL{i}")) for i in range(per_filter))
+    TN = per_filter - FP
+    print_stats("Multi String Lookup", start, TP, FP, TN, FN)
+
+
+def multi_double_test():
+    print("[TEST] Multi SFilters (Double)")
+    n = 100_000
+    filters = 10
+    per_filter = n // filters
+    f = sfcollection.SFilters()
+    f.initialize(filters, per_filter, 0.001, 5)
+
+    for j in range(filters):
+        for i in range(per_filter):
+            f.insert_double(j, 8565948.2514 + i * 0.253458)
+    f.write_to_file("multiSFDoubleInsertionPY.sfs")
+
+    f2 = sfcollection.SFilters()
+    f2.load_from_file("multiSFDoubleInsertionPY.sfs")
+
+    start = time.time()
+    TP = sum(any(f2.match_bit_vector_double(8565948.2514 + i * 0.253458)) for i in range(per_filter))
+    FN = per_filter - TP
+    FP = sum(any(f2.match_bit_vector_double(8565948.2514 + i * 0.353458)) for i in range(per_filter))
+    TN = per_filter - FP
+    print_stats("Multi Double Lookup", start, TP, FP, TN, FN)
+
+def multi_double_test_real():
+    print("[TEST] Multi SFilters (Double)")
+    n = 150
+    filters = 2000_000
+    per_filter = n
+    f = sfcollection.SFilters()
+    f.initialize(filters, per_filter, 0.001, 5)
+
+    for j in range(filters):
+        for i in range(per_filter):
+            f.insert_double(j, 8565948.2514 + i * 0.253458)
+    f.write_to_file("multiSFDoubleInsertionPY.sfs")
+    f = None
+    gc.collect()
+    f2 = sfcollection.SFilters()
+    f2.load_from_file("multiSFDoubleInsertionPY.sfs")
+
+    start = time.time()
+    TP = sum(any(f2.match_bit_vector_double(8565948.2514 + i * 0.253458)) for i in range(per_filter))
+    FN = per_filter - TP
+    FP = sum(any(f2.match_bit_vector_double(8565948.2514 + i * 0.353458)) for i in range(per_filter))
+    TN = per_filter - FP
+    print_stats("Multi Double Lookup", start, TP, FP, TN, FN)
 
 if __name__ == "__main__":
-    
-    run_test()
+    # single_string_test()
+    # single_double_test()
+    # multi_string_test()
+    # multi_double_test()
+    multi_double_test_real()

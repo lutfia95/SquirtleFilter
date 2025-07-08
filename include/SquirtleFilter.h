@@ -13,6 +13,18 @@
 #include <cereal/types/vector.hpp>
 #include <cereal/archives/binary.hpp>
 
+/**
+ * @brief Implements a probabilistic data structure for checking set membership,
+ * optimized for space efficiency and high performance.
+ *
+ * A Bloom filter allows for fast checking of whether an element is a member of a set.
+ * It uses multiple hash functions to map elements to bits in a bit array.
+ * While it can have false positives (reporting an element as present when it's not),
+ * it never has false negatives (reporting an element as not present when it is).
+ * This implementation uses `std::atomic<uint64_t>` for thread-safe bit manipulation,
+ * making it suitable for concurrent environments. It also provides serialization
+ * capabilities for persistence.
+ */
 class BloomFilter {
 public:
 
@@ -76,7 +88,7 @@ public:
     };
 
     BloomFilterData exportData() const;
-    
+
     void importData(const BloomFilterData& data);
 
 private:

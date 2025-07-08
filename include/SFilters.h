@@ -5,6 +5,18 @@
 #include <vector>
 #include <string>
 
+
+/**
+ * @brief Manages a collection of Bloom filter instances, enabling operations across multiple filters.
+ *
+ * The `SFilters` class (likely short for "Scalable Filters" or "Set of Filters")
+ * provides a higher-level abstraction for working with multiple `BloomFilter` objects.
+ * It allows for initialization of a specified number of filters, inserting items
+ * into specific filters, serializing/deserializing the entire collection,
+ * and querying the presence of items across all managed filters. This can be
+ * useful for tiered Bloom filters, sharded filters, or scenarios requiring
+ * multiple independent filters.
+ */
 class SFilters {
 public:
     SFilters() = default;
