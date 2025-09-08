@@ -4,6 +4,8 @@
 #include "SquirtleFilter.h"
 #include <vector>
 #include <string>
+#include <iomanip>
+#include <fstream>
 
 
 /**
@@ -46,6 +48,8 @@ public:
 
     std::vector<int> matchBitVector(const std::string& key) const;
     std::vector<int> matchBitVector(double value) const;
+
+    void printSummary() const;
 
 private:
     std::vector<BloomFilter> filters;

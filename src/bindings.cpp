@@ -16,7 +16,7 @@ PYBIND11_MODULE(sfcollection, m) {
         .def("clear", &BloomFilter::clear, "Clear the filter")
         .def("write", &BloomFilter::writeSQFilter, "Write to file")
         .def("load", &BloomFilter::loadSQFilter, "Load from file")
-        .def("print_summary", &BloomFilter::printSummary, "Print summary");
+        .def("print_summary_single", &BloomFilter::printSummary, "Print summary"); // this case is handling one filter only!
 
     py::class_<SFilters>(m, "SFilters")
         .def(py::init<>(), "Default constructor")
@@ -26,6 +26,7 @@ PYBIND11_MODULE(sfcollection, m) {
         .def("insert_double", static_cast<void (SFilters::*)(size_t, double)>(&SFilters::insert), "Insert double at index")
         .def("write_to_file", &SFilters::writeToFile, "Write all filters to file")
         .def("load_from_file", &SFilters::loadFromFile, "Load filters from file")
+        .def("print_summary_collection", &SFilters::printSummary, "Print summary of the collection")
 
         .def("match_bit_vector_string", [](const SFilters& self, const std::string& key) {
             std::vector<int> result = self.matchBitVector(key);

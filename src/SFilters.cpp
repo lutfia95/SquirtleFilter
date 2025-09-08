@@ -1,5 +1,4 @@
 #include "SFilters.h"
-#include <fstream>
 #include <cereal/archives/binary.hpp>
 
 
@@ -188,4 +187,70 @@ std::vector<int> SFilters::matchBitVector(double value) const {
         presence.push_back(filter.contains(value) ? 1 : 0);
     }
     return presence;
+}
+
+
+void SFilters::printSummary() const {
+    std::cout << "=== SFilters Summary ===\n";
+    const size_t n = filters.size();
+    std::cout << "Number of filters     : " << n << '\n';
+
+    if (n == 0) {
+        std::cout << "Collection is empty.\n";
+        std::cout << "========================\n";
+        return;
+    }
+
+    // Aggregates
+    size_t total_capacity = 0;
+    size_t total_items    = 0;
+    size_t total_bits     = 0;
+
+    size_t min_capacity = std::numeric_limits<size_t>::max();
+    size_t max_capacity = 0;
+
+    size_t min_items = std::numeric_limits<size_t>::max();
+    size_t max_items = 0;
+
+    size_t min_bits = std::numeric_limits<size_t>::max();
+    size_t max_bits = 0;
+
+    uint8_t k_min = std::numeric_limits<uint8_t>::max();
+    uint8_t k_max = 0;
+
+    double fpr_min = std::numeric_limits<double>::infinity();
+    double fpr_max = 0.0;
+
+    for (const auto& f : filters) {
+        // Use the exported snapshot to avoid needing private access
+        const auto d = f.exportData(); // BloomFilter::BloomFilterData
+
+        total_capacity += d.capacity;
+        total_items    += d.item_count;
+        total_bits     += d.bit_count;
+
+        min_capacity = std::min(min_capacity, d.capacity);
+        max_capacity = std::max(max_capacity, d.capacity);
+
+        min_items = std::min(min_items, d.item_count);
+        max_items = std::max(max_items, d.item_count);
+
+        min_bits = std::min(min_bits, d.bit_count);
+        max_bits = std::max(max_bits, d.bit_count);
+
+    }
+
+    std::cout << "Total capacity        : " << total_capacity << '\n';
+    std::cout << "Total items           : " << total_items << '\n';
+    std::cout << "Total bit count       : " << total_bits << " bits (~"
+       << ((total_bits + 63) / 64) << " words)\n";
+
+    std::cout << "Per-filter capacity   : min " << min_capacity
+       << " / max " << max_capacity << '\n';
+    std::cout << "Per-filter items      : min " << min_items
+       << " / max " << max_items << '\n';
+    std::cout << "Per-filter bit count  : min " << min_bits
+       << " / max " << max_bits << '\n';
+    std::cout << "========================\n";
+
 }

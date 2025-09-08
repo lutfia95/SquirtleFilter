@@ -2,7 +2,7 @@
 #include "SquirtleFilter.h"
 #include "SFilters.h"
 #include <string>
-#include <cstdio> // for std::remove
+#include <cstdio>
 
 // ==== BLOOM FILTER TESTS ====
 
